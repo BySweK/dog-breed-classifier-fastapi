@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Woof 🐾 — Köpek Irkı Tanıma</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+    /* Sürükle-bırak alanı */
+    #drop-zone {
+      transition: border-color 0.2s, background 0.2s;
+    }
+    #drop-zone.drag-over {
+      border-color: #f59e0b;
+      background: #fffbeb;
+    }
+
+    /* Confidence bar animasyonu */
+    .bar-fill {
+      width: 0%;
+      transition: width 0.8s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* Paw print loader */
+    .paw-loader span {
+      display: inline-block;
+      animation: bounce 0.8s infinite alternate;
+    }
+    .paw-loader span:nth-child(2) { animation-delay: .15s; }
+    .paw-loader span:nth-child(3) { animation-delay: .30s; }
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-8px); }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-amber-50 flex flex-col items-center justify-start py-10 px-4">
+
+  <!-- Başlık -->
+  <header class="mb-8 text-center">
+    <h1 class="text-5xl font-extrabold text-amber-700 tracking-tight">
+      🐾 Woof
+    </h1>
+    <p class="mt-2 text-amber-600 text-lg">Köpek ırkını bir saniyede tanı!</p>
+  </header>
+
+  <!-- Ana Kart -->
+  <main class="w-full max-w-xl bg-white rounded-3xl shadow-xl p-8 flex flex-col gap-6">
+
+    <!-- Yükleme Alanı -->
+    <div
+      id="drop-zone"
+      class="relative flex flex-col items-center justify-center border-2 border-dashed border-amber-300 rounded-2xl p-8 cursor-pointer text-center gap-3 hover:border-amber-500 hover:bg-amber-50"
+      onclick="document.getElementById('file-input').click()"
+    >
+      <input
+        id="file-input"
+        type="file"
+        accept="image/*"
+        class="hidden"
+        onchange="handleFile(this.files[0])"
+      />
+      <div id="upload-icon" class="text-6xl select-none">🐶</div>
+      <p id="upload-text" class="text-amber-700 font-medium">
+        Resmi buraya sürükle veya <span class="underline">seç</span>
+      </p>
+      <p class="text-xs text-gray-400">JPEG, PNG, WebP · Maks. 10 MB</p>
+    </div>
+
+    <!-- Önizleme -->
+    <div id="preview-wrap" class="hidden flex-col items-center gap-3">
+      <img
+        id="preview-img"
+        src=""
+        alt="Yüklenen resim"
+        class="rounded-2xl max-h-64 object-contain shadow"
+      />
+      <button
+        onclick="resetUI()"
+        class="text-sm text-gray-400 underline hover:text-red-400 transition"
+      >
+        Başka resim seç
+      </button>
+    </div>
+
+    <!-- Yükleniyor -->
+    <div id="loader" class="hidden flex-col items-center gap-2 py-2">
+      <div class="paw-loader text-3xl">
+        <span>🐾</span><span>🐾</span><span>🐾</span>
+      </div>
+      <p class="text-amber-600 text-sm font-medium">Analiz ediliyor…</p>
+    </div>
+
+    <!-- Sonuçlar -->
+    <div id="results" class="hidden flex-col gap-4">
+      <h2 class="text-lg font-bold text-gray-700 text-center">Tahmin Sonuçları</h2>
+      <div id="result-bars" class="flex flex-col gap-3"></div>
+    </div>
+
+    <!-- Hata -->
+    <div
+      id="error-box"
+      class="hidden bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm"
+    ></div>
+
+  </main>
+
+  <footer class="mt-8 text-xs text-amber-400">
+    ResNet-50 · 10 Köpek Irkı · FastAPI
+  </footer>
+
+  <script>
+    const dropZone   = document.getElementById('drop-zone');
+    const fileInput  = document.getElementById('file-input');
+    const uploadIcon = document.getElementById('upload-icon');
+    const uploadText = document.getElementById('upload-text');
+    const previewWrap = document.getElementById('preview-wrap');
+    const previewImg  = document.getElementById('preview-img');
+    const loader     = document.getElementById('loader');
+    const results    = document.getElementById('results');
+    const resultBars = document.getElementById('result-bars');
+    const errorBox   = document.getElementById('error-box');
+
+    // ── Sürükle-bırak ────────────────────────────────────────────
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    // ── Dosya seçildi ─────────────────────────────────────────────
+    function handleFile(file) {
+      if (!file) return;
+
+      // Önizleme göster
+      const reader = new FileReader();
+      reader.onload = ev => {
+        previewImg.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+
+      hideAll();
+      previewWrap.classList.remove('hidden');
+      previewWrap.classList.add('flex');
+      loader.classList.remove('hidden');
+      loader.classList.add('flex');
+
+      // Gönder
+      uploadToServer(file);
+    }
+
+    // ── API isteği ────────────────────────────────────────────────
+    async function uploadToServer(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/predict', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        loader.classList.add('hidden');
+        loader.classList.remove('flex');
+
+        if (!res.ok) {
+          showError(data.detail || 'Bir hata oluştu.');
+          return;
+        }
+
+        renderResults(data.predictions);
+      } catch (err) {
+        loader.classList.add('hidden');
+        loader.classList.remove('flex');
+        showError('Sunucuya bağlanılamadı.');
+      }
+    }
+
+    // ── Sonuçları çiz ─────────────────────────────────────────────
+    const COLORS = ['bg-amber-500', 'bg-orange-400', 'bg-yellow-400'];
+
+    function renderResults(predictions) {
+      resultBars.innerHTML = '';
+
+      predictions.forEach((p, i) => {
+        const color = COLORS[i] ?? 'bg-gray-400';
+        const row = document.createElement('div');
+        row.className = 'flex flex-col gap-1';
+        row.innerHTML = `
+          <div class="flex justify-between text-sm font-semibold text-gray-700">
+            <span>${i === 0 ? '🏆 ' : ''}${p.label}</span>
+            <span>${p.confidence.toFixed(1)}%</span>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+            <div class="bar-fill ${color} h-4 rounded-full" data-width="${p.confidence}"></div>
+          </div>
+        `;
+        resultBars.appendChild(row);
+      });
+
+      results.classList.remove('hidden');
+      results.classList.add('flex');
+
+      // Animasyonu başlat (küçük gecikmeyle)
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.bar-fill').forEach(bar => {
+          bar.style.width = bar.dataset.width + '%';
+        });
+      });
+    }
+
+    // ── Yardımcılar ───────────────────────────────────────────────
+    function showError(msg) {
+      errorBox.textContent = '⚠️ ' + msg;
+      errorBox.classList.remove('hidden');
+    }
+
+    function hideAll() {
+      [loader, results, errorBox].forEach(el => {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+      });
+    }
+
+    function resetUI() {
+      previewWrap.classList.add('hidden');
+      previewWrap.classList.remove('flex');
+      previewImg.src = '';
+      fileInput.value = '';
+      hideAll();
+    }
+  </script>
+</body>
+</html>
