@@ -4,7 +4,6 @@ A deep learning-powered web application that classifies dog breeds instantly wit
 
 <table>
   <tr>
-    <td align="center"><img src="dogprojegorsel1.png" width="400"/><br><b>Ana Ekran</b></td>
     <td align="center"><img src="dogprojegorsel2.png" width="400"/><br><b>Tahmin Sonucu</b></td>
   </tr>
 </table>
