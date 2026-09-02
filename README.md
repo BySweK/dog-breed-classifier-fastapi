@@ -2,8 +2,12 @@
 
 A deep learning-powered web application that classifies dog breeds instantly with high accuracy. Built using PyTorch (ResNet50), FastAPI, and a modern web interface.
 
-![Project Preview](dogprojegorsel1.png)
-![Project Preview](dogprojegorsel2.png)
+<table>
+  <tr>
+    <td align="center"><img src="dogprojegorsel1.png" width="400"/><br><b>Ana Ekran</b></td>
+    <td align="center"><img src="dogprojegorsel2.png" width="400"/><br><b>Tahmin Sonucu</b></td>
+  </tr>
+</table>
 
 ## 🚀 Features
 * **High Accuracy:** Powered by a fine-tuned **ResNet50** convolutional neural network.
