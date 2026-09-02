@@ -17,3 +17,5 @@ A deep learning-powered web application that classifies dog breeds instantly wit
 * **Deep Learning:** PyTorch, Torchvision, ResNet50
 * **Backend:** FastAPI, Uvicorn, Python PIL
 * **Frontend:** HTML5, CSS3, JavaScript (Tailwind/Custom styling)
+
+Web interface designed and built with the assistance of Cursor AI
